@@ -1,19 +1,36 @@
 {
-  "adminRoles": [],
-  "server": "",
+  "adminRoles": [
+    "928253000693207091"
+  ],
+  "server": "900812976276262982",
   "status": {
     "default": "WORKING",
     "defaultName": "status",
-    "message": "",
+    "message": "928327727528935444",
     "renameOnStatus": false,
     "statuses": {
-      "uniqueOne":{
+      "win": {
         "customStatus": null,
-        "statusType": "online",
-        "name": "Dashboard"
+        "statusType": "offline",
+        "name": "Script-Ware Windows"
+      },
+      "mac": {
+        "customStatus": null,
+        "statusType": "offline",
+        "name": "Script-Ware macOS"
+      },
+      "ios": {
+        "customStatus": null,
+        "statusType": "offline",
+        "name": "Script-Ware iOS"
+      },
+      "web": {
+        "customStatus": "Limited Functionality - API down",
+        "statusType": "limited",
+        "name": "Website"
       }
     },
-    "channel": ""
+    "channel": "928256244911861850"
   },
-  "clientID": ""
+  "clientID": "864160085595783208"
 }

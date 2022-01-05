@@ -116,14 +116,14 @@ client.on("interactionCreate", async (interaction) => {
 	const { commandName } = interaction;
 
 	if (commandName === "ping") {
-		await interaction.reply("Pong!");
+		await interaction.reply({ content: "Pong!", ephemeral: true });
 	} else if (commandName === "status") {
 		const subcommand = interaction.options.getSubcommand();
 		if (subcommand == "get") {
 			var platform = interaction.options.getString("platform");
 			if (!platform) return interaction.reply({ embeds: allPlatforms(), ephemeral: true });
 
-			return interaction.reply({ embeds: [getPlatform(platform)], ephemeral: true });
+			return interaction.reply({ embeds: [getPlatform(platform)] });
 		}
 
 		if (subcommand == "set" || subcommand == "reset") {
@@ -191,6 +191,8 @@ client.on("interactionCreate", async (interaction) => {
 			}
 		}
 		await interaction.reply("ok");
+	} else if (commandName === "source") {
+		await interaction.reply("https://jck.cx/g/StatusBot");
 	}
 });
 
