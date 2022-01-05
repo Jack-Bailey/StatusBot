@@ -2,6 +2,8 @@
 
 A simple yet easily configurable and effective discord.js bot that can be used to keep track of the status of many applications using slash commands.
 
+Made for [Script-Ware](https://script-ware.com) - it's my second program in discord.js so it's probably not optimal.
+
 #### **`.env`**
 
 ```

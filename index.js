@@ -196,6 +196,4 @@ client.on("interactionCreate", async (interaction) => {
 	}
 });
 
-// slash command
-
 client.login(process.env.TOKEN);
