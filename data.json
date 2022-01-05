@@ -1,0 +1,19 @@
+{
+  "adminRoles": [],
+  "server": "",
+  "status": {
+    "default": "WORKING",
+    "defaultName": "status",
+    "message": "",
+    "renameOnStatus": false,
+    "statuses": {
+      "uniqueOne":{
+        "customStatus": null,
+        "statusType": "online",
+        "name": "Dashboard"
+      }
+    },
+    "channel": ""
+  },
+  "clientID": ""
+}
