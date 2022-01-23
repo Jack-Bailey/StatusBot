@@ -5,7 +5,7 @@ const { Routes } = require("discord-api-types/v9");
 const { data } = require("./commands/ping");
 require("dotenv").config();
 
-client = new Discord.Client({ intents: ["GUILD_MESSAGES"] });
+client = new Discord.Client({ partials: ["CHANNEL"], intents: ["GUILD_MESSAGES", "DIRECT_MESSAGES"] });
 
 const commands = [];
 const commandFiles = fs.readdirSync("./commands").filter((file) => file.endsWith(".js"));
@@ -48,38 +48,70 @@ async function updateStatus() {
 			}
 		});
 	}
-	if (data.status.renameOnStatus) {
-		var issues = 0;
-		var down = 0;
-		Object.keys(data.status.statuses).forEach(async function (platform, index) {
-			if (data.status.statuses[platform].statusType === "limited") {
-				issues++;
-			}
-			if (data.status.statuses[platform].statusType === "offline") {
-				down++;
-			}
-		});
-		var name = null;
-		if (down > 0 && down < data.status.statuses.length) {
-			name = "some offline";
-		} else if (down == data.status.statuses.length) {
-			name = "all offline";
-		} else if (issues > 0) {
-			name = "some issues";
-		} else if (issues == data.status.statuses.length) {
-			name = "all issues";
-		}
-		if (name) {
-			await statusChannel
-				.setTopic(name)
-				.then((updated) => console.log(updated))
-				.catch(console.error);
-		} else {
-			await statusChannel.setTopic(data.status.defaultName);
-		}
-	}
+	var counts = {
+		online: 0,
+		limited: 0,
+		offline: 0,
+	};
 
+	Object.keys(data.status.statuses).forEach(async function (platform, index) {
+		counts[data.status.statuses[platform].statusType]++;
+	});
+
+	var status = "online";
+	var title = "";
+	if (counts.offline > 0) {
+		if (counts.offline == Object.keys(data.status.statuses).length) {
+			title = "All services are offline";
+		} else {
+			title = `${counts.offline}/${Object.keys(data.status.statuses).length} services are offline`;
+		}
+		status = "dnd";
+	} else if (counts.limited > 0) {
+		if (counts.limited == Object.keys(data.status.statuses).length) {
+			title = "All services are limited";
+		} else {
+			title = `${counts.limited}/${Object.keys(data.status.statuses).length} services are limited`;
+		}
+		status = "idle";
+	} else {
+		title = "All services are online";
+	}
+	await client.user.setPresence({
+		status: status,
+		activities: [
+			{
+				name: title,
+				type: "WATCHING",
+			},
+		],
+	});
 	await message.edit({ embeds: allPlatforms() });
+}
+
+async function update(data) {
+	fs.writeFileSync("./data.json", JSON.stringify(data, null, 2), function (err) {
+		if (err) {
+			console.log(err);
+		}
+	});
+	await updateStatus();
+}
+
+async function log(data, user) {
+	console.log(user);
+	var avatar = user.avatar
+		? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}?size=32`
+		: "https://discord.com/assets/3c6ccb83716d1e4fb91d3082f6b21d77.png";
+	var embed = new Discord.MessageEmbed()
+		.setColor(data.new.statusType == "online" ? "3AA55D" : data.new.statusType == "limited" ? "FAA81A" : "ED4145")
+		.setTitle(data.title)
+		.setDescription(data.description)
+		.setAuthor(`${user.username}#${user.discriminator}`, avatar);
+
+	var data = require("./data.json");
+	var logChannel = await client.channels.fetch(data.status.logs);
+	await logChannel.send({ embeds: [embed] });
 }
 
 function getPlatform(platform) {
@@ -87,7 +119,7 @@ function getPlatform(platform) {
 	if (data.status.statuses.hasOwnProperty(platform)) {
 		var status = data.status.statuses[platform];
 		var embed = new Discord.MessageEmbed()
-			.setColor(status.statusType == "online" ? "3AA55D" : status.statusType == "limited" ? "FAA81A" : "ED4145")
+			.setColor(data.colors[status.statusType])
 			.setTitle(status.name)
 			.setDescription(
 				status.customStatus
@@ -105,8 +137,46 @@ function getPlatform(platform) {
 
 client.on("ready", async function () {
 	console.log(`Logged in as ${client.user.tag}!`);
-	client.user.setActivity("ROBLOX", { type: "PLAYING" });
 	await updateStatus();
+});
+
+client.on("messageCreate", async function (msg) {
+	if (msg.guild == null && !msg.author.bot) {
+		var reply = {
+			online: [],
+			limited: [],
+			offline: [],
+		};
+		var data = require("./data.json");
+		var platforms = Object.keys(data.status.statuses);
+		platforms.forEach(function (platform, index) {
+			switch (data.status.statuses[platform].statusType) {
+				case "online":
+					reply.online.push(data.status.statuses[platform].name);
+					break;
+				case "limited":
+					reply.limited.push(data.status.statuses[platform].name);
+					break;
+				case "offline":
+					reply.offline.push(data.status.statuses[platform].name);
+					break;
+			}
+		});
+		var embeds = [];
+		if (reply.online.length > 0) {
+			var embed = new Discord.MessageEmbed().setColor(data.colors.online).setTitle("Online").setDescription(reply.online.join("\n "));
+			embeds.push(embed);
+		}
+		if (reply.limited.length > 0) {
+			var embed = new Discord.MessageEmbed().setColor(data.colors.limited).setTitle("Limited").setDescription(reply.limited.join("\n "));
+			embeds.push(embed);
+		}
+		if (reply.offline.length > 0) {
+			var embed = new Discord.MessageEmbed().setColor(data.colors.offline).setTitle("Offline").setDescription(reply.offline.join("\n "));
+			embeds.push(embed);
+		}
+		await msg.reply({ content: "Current statuses:", embeds });
+	}
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -116,14 +186,14 @@ client.on("interactionCreate", async (interaction) => {
 	const { commandName } = interaction;
 
 	if (commandName === "ping") {
-		await interaction.reply("Pong!");
+		await interaction.reply({ content: "Pong!", ephemeral: true });
 	} else if (commandName === "status") {
 		const subcommand = interaction.options.getSubcommand();
 		if (subcommand == "get") {
 			var platform = interaction.options.getString("platform");
 			if (!platform) return interaction.reply({ embeds: allPlatforms(), ephemeral: true });
 
-			return interaction.reply({ embeds: [getPlatform(platform)], ephemeral: true });
+			return interaction.reply({ embeds: [getPlatform(platform)] });
 		}
 
 		if (subcommand == "set" || subcommand == "reset") {
@@ -133,10 +203,11 @@ client.on("interactionCreate", async (interaction) => {
 					return member._roles.includes(role);
 				}).length > 0;
 
-			if (!hasRole) return interaction.reply({ content: "Insufficient permissions", ephemeral: true });
+			if (!hasRole) return interaction.reply({ content: "Only moderators and above can use this command", ephemeral: true });
 
 			if (subcommand == "reset") {
 				var platform = interaction.options.getString("platform");
+				console.log(platform);
 				if (!platform) {
 					Object.keys(data.status.statuses).forEach(function (platform) {
 						data.status.statuses[platform] = {
@@ -145,17 +216,15 @@ client.on("interactionCreate", async (interaction) => {
 							name: data.status.statuses[platform].name,
 						};
 					});
-					fs.writeFileSync("./data.json", JSON.stringify(data, null, 2), function (err) {
-						if (err) {
-							console.log(err);
-						}
-					});
-					await updateStatus();
-					fs.writeFileSync("./data.json", JSON.stringify(data, null, 2), function (err) {
-						if (err) {
-							console.log(err);
-						}
-					});
+					await update(data);
+					await log(
+						{
+							title: "Reset all statuses",
+							description: "All statuses have been reset to online",
+							new: { statusType: "online" },
+						},
+						member.user
+					);
 					return interaction.reply({ content: "Reset all platforms", ephemeral: true });
 				}
 				data.status.statuses[platform] = {
@@ -163,11 +232,16 @@ client.on("interactionCreate", async (interaction) => {
 					statusType: "online",
 					name: data.status.statuses[platform].name,
 				};
-				fs.writeFileSync("./data.json", JSON.stringify(data, null, 2), function (err) {
-					if (err) {
-						console.log(err);
-					}
-				});
+				await log(
+					{
+						title: "Reset status",
+						description: `Status for ${platform} has been reset to online`,
+						new: { statusType: "online" },
+					},
+					member.user
+				);
+
+				await update(data);
 				return interaction.reply({ content: "Reset platform", ephemeral: true });
 			}
 			if (subcommand == "set") {
@@ -181,19 +255,22 @@ client.on("interactionCreate", async (interaction) => {
 					statusType,
 					name: data.status.statuses[platform].name,
 				};
-				fs.writeFileSync("./data.json", JSON.stringify(data, null, 2), function (err) {
-					if (err) {
-						console.log(err);
-					}
-				});
-				await updateStatus();
+				await log(
+					{
+						title: "Set status",
+						description: `Status for ${platform} has been set to ${statusType}`,
+						new: { statusType },
+					},
+					member.user
+				);
+
+				await update(data);
 				return interaction.reply({ content: "Updated platform", ephemeral: true });
 			}
 		}
-		await interaction.reply("ok");
+	} else if (commandName === "source") {
+		await interaction.reply("https://jck.cx/g/StatusBot");
 	}
 });
-
-// slash command
 
 client.login(process.env.TOKEN);
